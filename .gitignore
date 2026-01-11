@@ -1,55 +1,52 @@
-# Python
+# Python cache files
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
+*.pyc
+*.pyo
+*.pyd
 .Python
-build/
-develop-eggs/
+*.so
+*.egg-info
 dist/
-downloads/
-eggs/
+build/
 .eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual Environment
-venv/
-ENV/
-env/
-.venv
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.cache/
 
 # Logs
 *.log
 logs/
 
-# Database
+# Virtual environments
+venv/
+env/
+.venv
+
+# IDE
+.idea/
+.vscode/
+
+# Database files
 *.db
 *.sqlite
 *.sqlite3
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# OS
+# Git
+.git/
 .DS_Store
-Thumbs.db
 
-# Environment variables
+# Output and data files
+output/
+test_output/
+*.parquet
+
+# Environment files
 .env
 .env.local
 
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+*.ipynb_checkpoints

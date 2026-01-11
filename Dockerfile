@@ -17,9 +17,6 @@ COPY . .
 # Create logs directory
 RUN mkdir -p logs
 
-# Expose port for Jupyter notebook (optional)
-EXPOSE 8888
-
 # Default command - run the ETL pipeline
 CMD ["python", "main.py"]
 

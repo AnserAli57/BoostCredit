@@ -1,87 +1,65 @@
-"""
-Main ETL Pipeline orchestrator.
-"""
-from typing import Optional
-from .extractors.csv_extractor import CSVExtractor
-from .extractors.json_extractor import JSONExtractor
-from .transformers.csv_transformer import CSVTransformer
-from .transformers.json_transformer import JSONTransformer
-from .loaders.sql_loader import SQLLoader
+import os
+from .extractors import CSVExtractor, JSONExtractor
+from .transformers import CSVTransformer, JSONTransformer
+from .loaders import SQLLoader, ObjectStoreLoader
+from .storage import ObjectStore
 from .utils.logger import setup_logger
 
 logger = setup_logger()
 
 
-class ETLPipeline:
-    """Main ETL Pipeline class."""
-    
-    def __init__(self, db_connection_string: str):
-        """
-        Initialize ETL Pipeline.
+class Pipeline:
+    def __init__(self):
+        self.object_store_path = os.getenv('OBJECT_STORE_PATH', './output')
+        self.data_path = os.getenv('DATA_PATH', './data')
+        loader_type = os.getenv('LOADER_TYPE', 'sql').lower()
         
-        Args:
-            db_connection_string: SQLAlchemy connection string for the database
-        """
-        self.db_connection_string = db_connection_string
+        self.object_store = ObjectStore(self.object_store_path)
         self.csv_extractor = CSVExtractor()
         self.json_extractor = JSONExtractor()
         self.csv_transformer = CSVTransformer()
         self.json_transformer = JSONTransformer()
-        self.sql_loader = SQLLoader(db_connection_string)
-        logger.info("ETL Pipeline initialized")
+        self.loader = SQLLoader()
     
-    def process_csv(self, csv_file_path: str, table_name: str = 'test') -> None:
-        """
-        Process CSV file: extract, transform, and load.
+    def process_csv(self, filename: str):
+        store_key = os.getenv('STORE_KEY')
         
-        Args:
-            csv_file_path: Path to the CSV file
-            table_name: Target table name (default: 'test')
-        """
-        try:
-            logger.info(f"Starting CSV processing pipeline for {csv_file_path}")
-            
-            # Extract
-            raw_data = self.csv_extractor.extract(csv_file_path)
-            
-            # Transform
-            transformed_data = self.csv_transformer.transform(raw_data)
-            
-            # Load
-            self.sql_loader.load(transformed_data, table_name)
-            
-            logger.info(f"Successfully completed CSV processing pipeline")
-            
-        except Exception as e:
-            logger.error(f"Error in CSV processing pipeline: {str(e)}")
-            raise
-    
-    def process_json(self, json_file_path: str) -> None:
-        """
-        Process JSON file: extract, transform, and load.
+        if not store_key:
+            raise ValueError("STORE_KEY must be set via environment variables")
         
-        Args:
-            json_file_path: Path to the JSON file
-        """
-        try:
-            logger.info(f"Starting JSON processing pipeline for {json_file_path}")
-            
-            # Extract
-            raw_data = self.json_extractor.extract(json_file_path)
-            
-            # Transform
-            transformed_data = self.json_transformer.transform(raw_data)
-            
-            # Load (multiple tables)
-            self.sql_loader.load(transformed_data, transformed_data)
-            
-            logger.info(f"Successfully completed JSON processing pipeline")
-            
-        except Exception as e:
-            logger.error(f"Error in JSON processing pipeline: {str(e)}")
-            raise
+        logger.info(f"Processing CSV: {filename}")
+        
+        file_path = f"{self.data_path}/{filename}"
+        raw_data = self.csv_extractor.extract(file_path)
+        transformed = self.csv_transformer.transform(raw_data)
+        
+        self.object_store.save(transformed, store_key, 'parquet')
+        logger.info(f"Saved to object store: {store_key}.parquet")
+        
+        self.load_from_store(store_key)
     
-    def close(self) -> None:
-        """Close database connections."""
-        self.sql_loader.close()
-
+    def process_json(self, filename: str):
+        store_key = os.getenv('STORE_KEY')
+        
+        if not store_key:
+            raise ValueError("STORE_KEY must be set via environment variables")
+        
+        logger.info(f"Processing JSON: {filename}")
+        
+        file_path = f"{self.data_path}/{filename}"
+        raw_data = self.json_extractor.extract(file_path)
+        transformed = self.json_transformer.transform(raw_data)
+        
+        self.object_store.save(transformed, store_key, 'parquet')
+        logger.info(f"Saved to object store: {store_key}_*.parquet")
+        
+        self.load_from_store(store_key)
+    
+    def load_from_store(self, store_key: str):
+        logger.info(f"Loading from object store: {store_key} to destination database")
+        data = self.object_store.load(store_key, 'parquet')
+        self.loader.load(data, store_key)
+        logger.info(f"Loaded {store_key} from object store to destination")
+    
+    def close(self):
+        self.loader.close()

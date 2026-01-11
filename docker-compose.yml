@@ -6,24 +6,37 @@ services:
     container_name: etl_pipeline
     volumes:
       - ./data:/app/data
+      - ./output:/app/output
       - ./logs:/app/logs
-      - ./etl_database.db:/app/etl_database.db
     environment:
-      - DATABASE_URL=sqlite:///etl_database.db
-    command: python main.py
+      - DATA_PATH=/app/data
+      - OBJECT_STORE_PATH=/app/output
+      - CSV_FILE=${CSV_FILE}
+      - JSON_FILE=${JSON_FILE}
+      - LOADER_TYPE=${LOADER_TYPE:-sql}
+      - STORE_KEY=${STORE_KEY}
+      - DB_TYPE=${DB_TYPE:-postgresql}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_DB=${POSTGRES_DB}
+    command: python main.py --mode csv
 
   postgres-db:
     image: postgres:15-alpine
     container_name: postgres_db
     environment:
-      POSTGRES_USER: etl_user
-      POSTGRES_PASSWORD: etl_password
-      POSTGRES_DB: etl_database
+      - POSTGRES_USER=${POSTGRES_USER:-etl_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-etl_password}
+      - POSTGRES_DB=${POSTGRES_DB:-etl_database}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
 volumes:
   postgres_data:
-
