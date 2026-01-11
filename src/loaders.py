@@ -19,11 +19,12 @@ class SQLLoader:
         self.connection_string = self._build_connection_string()
         self.engine = create_engine(self.connection_string)
     
-    def _build_connection_string(self, db_type, db_user, db_password, db_host, db_port, db_name):
-        if db_type == 'postgresql' or db_type == 'postgres':
-            return f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+    def _build_connection_string(self):
+        if self.db_type == 'postgresql' or self.db_type == 'postgres':
+            return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+        else:
+            raise ValueError(f"Unsupported database type: {self.db_type}. Only PostgreSQL is supported.")
 
-    
     def load(self, data: Any, target: str):
         if isinstance(data, pd.DataFrame):
             self._create_table(data, target)
