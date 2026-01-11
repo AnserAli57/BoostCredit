@@ -65,9 +65,15 @@ class Pipeline:
         elif isinstance(data, dict):
             data = {k: (v.to_pandas() if isinstance(v, pl.DataFrame) else v) for k, v in data.items()}
         try:
+            # Determine table name (CSV data goes to 'test' table, JSON uses store_key)
+            if isinstance(data, pd.DataFrame):
+                table_name = 'test' if store_key == 'csv_data' else store_key
+            else:
+                table_name = store_key  # For dict (JSON data), use store_key
+            
             # Clear existing data before loading to avoid duplicates
             self._clear_existing_data(data, store_key)
-            self.loader.load(data, store_key)
+            self.loader.load(data, table_name)
             logger.info(f"Loaded {store_key} from object store to destination")
         except ConnectionError as e:
             logger.error(f"Database load failed: {e}")
