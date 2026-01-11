@@ -5,10 +5,10 @@ setup:
 	@sleep 3
 
 # Local execution (runs Python directly)
-run-csv:
+run-csv: setup
 	@. ./setup.sh; FILE=$${FILE:-test.csv}; STORE_KEY=$${STORE_KEY:-csv_data}; python3 main.py --mode csv --file $$FILE --store-key $$STORE_KEY
 
-run-json:
+run-json: setup
 	@. ./setup.sh; FILE=$${FILE:-test.json}; STORE_KEY=$${STORE_KEY:-json_data}; python3 main.py --mode json --file $$FILE --store-key $$STORE_KEY
 
 # Docker execution (runs in container, waits for DB)

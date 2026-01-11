@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Install Python dependencies
+if [ -f "requirements.txt" ]; then
+    echo "Installing Python dependencies..."
+    pip3 install -q -r requirements.txt
+    echo "✓ Dependencies installed"
+fi
+
 # Database Configuration (used by ETL pipeline)
 export DB_TYPE=${DB_TYPE:-postgresql}
 export DB_HOST=${DB_HOST:-localhost}

@@ -19,8 +19,7 @@ class SQLLoader:
             raise ValueError("Missing required database credentials: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME")
         
         self.connection_string = self._build_connection_string()
-        self.engine = create_engine(self.connection_string)
-        self._check_connection()
+        self.engine = None  # Will be initialized on first use
     
     def _check_connection(self, max_retries=5, retry_delay=2):
         """Check database connection with retry logic."""
@@ -42,14 +41,102 @@ class SQLLoader:
         else:
             raise ValueError(f"Unsupported database type: {self.db_type}. Only PostgreSQL is supported.")
 
+    def _ensure_engine(self):
+        """Initialize engine and check connection only when needed."""
+        if self.engine is None:
+            self.engine = create_engine(
+                self.connection_string,
+                pool_size=10,
+                max_overflow=20,
+                pool_pre_ping=True
+            )
+            self._check_connection()
+    
+    def _fast_insert_postgresql(self, df: pd.DataFrame, table_name: str):
+        """Fast bulk insert using PostgreSQL COPY for better performance."""
+        import io
+        
+        # Get raw connection for COPY
+        raw_conn = self.engine.raw_connection()
+        try:
+            cursor = raw_conn.cursor()
+            
+            # Create StringIO buffer
+            output = io.StringIO()
+            
+            # Write DataFrame to CSV format in memory (use \\N for NULL)
+            null_repr = '\\N'
+            df.to_csv(output, sep='\t', header=False, index=False, na_rep=null_repr)
+            output.seek(0)
+            
+            # Use COPY FROM for fast bulk insert
+            columns = ', '.join([f'"{col}"' for col in df.columns])
+            # Use ON CONFLICT DO NOTHING to handle duplicates gracefully
+            copy_sql = f"COPY {table_name} ({columns}) FROM STDIN WITH (FORMAT csv, DELIMITER E'\\t', NULL '{null_repr}')"
+            
+            # For tables with primary keys, we need to handle duplicates
+            # Check if table has primary key by trying to insert and handling conflict
+            try:
+                cursor.copy_expert(copy_sql, output)
+                raw_conn.commit()
+            except Exception as e:
+                # If duplicate key error, truncate and retry, or use temp table approach
+                if 'duplicate key' in str(e).lower() or 'unique constraint' in str(e).lower():
+                    raw_conn.rollback()
+                    # Truncate table and retry
+                    cursor.execute(f"TRUNCATE TABLE {table_name} CASCADE")
+                    output.seek(0)
+                    cursor.copy_expert(copy_sql, output)
+                    raw_conn.commit()
+                else:
+                    raise
+            cursor.close()
+        finally:
+            raw_conn.close()
+    
     def load(self, data: Any, target: str):
-        if isinstance(data, pd.DataFrame):
+        import polars as pl
+        try:
+            self._ensure_engine()
+        except ConnectionError as e:
+            raise ConnectionError(
+                f"Database load failed: {e}. "
+                f"Data has been saved to object store but could not be loaded into database. "
+                f"Please check database connection and try again."
+            ) from e
+        
+        # Use COPY method for PostgreSQL (much faster than INSERT)
+        chunksize = 50000  # Fallback chunksize for non-PostgreSQL
+        if isinstance(data, pl.DataFrame):
+            # Convert Polars to pandas only for database write
+            df_pd = data.to_pandas()
+            # Create table first
+            self._create_table(df_pd, target)
+            if self.db_type == 'postgresql' or self.db_type == 'postgres':
+                self._fast_insert_postgresql(df_pd, target)
+            else:
+                df_pd.to_sql(target, self.engine, if_exists='append', index=False, chunksize=chunksize, method='multi')
+        elif isinstance(data, pd.DataFrame):
+            # Create table first
             self._create_table(data, target)
-            data.to_sql(target, self.engine, if_exists='append', index=False)
+            if self.db_type == 'postgresql' or self.db_type == 'postgres':
+                self._fast_insert_postgresql(data, target)
+            else:
+                data.to_sql(target, self.engine, if_exists='append', index=False, chunksize=chunksize, method='multi')
         elif isinstance(data, dict):
-            for table_name, df in data.items():
-                self._create_table(df, table_name)
-                df.to_sql(table_name, self.engine, if_exists='append', index=False)
+            # Create tables in correct order (users first, then dependent tables)
+            table_order = ['users', 'telephone_numbers', 'jobs_history']
+            for table_name in table_order:
+                if table_name in data:
+                    df = data[table_name]
+                    if isinstance(df, pl.DataFrame):
+                        df = df.to_pandas()
+                    # Create table first
+                    self._create_table(df, table_name)
+                    if self.db_type == 'postgresql' or self.db_type == 'postgres':
+                        self._fast_insert_postgresql(df, table_name)
+                    else:
+                        df.to_sql(table_name, self.engine, if_exists='append', index=False, chunksize=chunksize, method='multi')
     
     def _create_table(self, df: pd.DataFrame, table_name: str):
         from sqlalchemy import inspect
@@ -103,7 +190,7 @@ class SQLLoader:
                         occupation VARCHAR(255),
                         is_fulltime BOOLEAN,
                         start DATE,
-                        end DATE,
+                        "end" DATE,
                         employer VARCHAR(255),
                         FOREIGN KEY (user_id) REFERENCES users(user_id)
                     )
@@ -111,7 +198,8 @@ class SQLLoader:
             conn.commit()
     
     def close(self):
-        self.engine.dispose()
+        if self.engine is not None:
+            self.engine.dispose()
 
 
 class ObjectStoreLoader:

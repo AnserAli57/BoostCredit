@@ -1,11 +1,11 @@
-import pandas as pd
+import polars as pl
 import json
 from typing import List, Dict
 
 
 class CSVExtractor:
-    def extract(self, source: str) -> pd.DataFrame:
-        return pd.read_csv(source)
+    def extract(self, source: str) -> pl.DataFrame:
+        return pl.read_csv(source)
 
 
 class JSONExtractor:

@@ -1,5 +1,5 @@
 import unittest
-import pandas as pd
+import polars as pl
 from src.transformers import CSVTransformer, JSONTransformer
 
 
@@ -8,30 +8,31 @@ class TestCSVTransformer(unittest.TestCase):
         self.transformer = CSVTransformer()
     
     def test_transform_with_timestamps(self):
-        df = pd.DataFrame({
+        df = pl.DataFrame({
             'id': [1, 2],
             'created_at': ['2020-01-01', '2020-01-02'],
-            'last_login': [1577836800, 1577923200],
+            'last_login': ['1577836800', '1577923200'],
             'is_claimed': ['True', 'False'],
             'paid_amount': ['5004.67', '893.40']
         })
         
         result = self.transformer.transform(df)
         
-        self.assertIsNotNone(result['created_at'].iloc[0])
-        self.assertIsNotNone(result['last_login'].iloc[0])
-        self.assertTrue(result['is_claimed'].iloc[0])
-        self.assertFalse(result['is_claimed'].iloc[1])
-        self.assertEqual(result['paid_amount'].iloc[0], 5004.67)
+        self.assertIsNotNone(result['created_at'][0])
+        self.assertIsNotNone(result['last_login'][0])
+        self.assertTrue(result['is_claimed'][0])
+        self.assertFalse(result['is_claimed'][1])
+        self.assertEqual(result['paid_amount'][0], 5004.67)
     
     def test_transform_unique_ids(self):
-        df = pd.DataFrame({
+        df = pl.DataFrame({
             'id': [1, 1, 2],
             'name': ['A', 'B', 'C']
         })
         
         result = self.transformer.transform(df)
-        self.assertTrue(result['id'].is_unique)
+        # Check that all IDs are unique (no duplicates)
+        self.assertTrue(result['id'].is_unique().all())
 
 
 class TestJSONTransformer(unittest.TestCase):
@@ -63,9 +64,9 @@ class TestJSONTransformer(unittest.TestCase):
         self.assertIn('telephone_numbers', result)
         self.assertIn('jobs_history', result)
         
-        self.assertEqual(len(result['users']), 1)
-        self.assertEqual(len(result['telephone_numbers']), 2)
-        self.assertEqual(len(result['jobs_history']), 1)
+        self.assertEqual(result['users'].height, 1)
+        self.assertEqual(result['telephone_numbers'].height, 2)
+        self.assertEqual(result['jobs_history'].height, 1)
 
 
 if __name__ == '__main__':

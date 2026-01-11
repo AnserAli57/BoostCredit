@@ -1,5 +1,5 @@
 import unittest
-import pandas as pd
+import polars as pl
 import tempfile
 import json
 from src.extractors import CSVExtractor, JSONExtractor
@@ -10,12 +10,12 @@ class TestCSVExtractor(unittest.TestCase):
         self.extractor = CSVExtractor()
     
     def test_extract_csv(self):
-        df = pd.DataFrame({'id': [1, 2], 'name': ['John', 'Jane']})
+        df = pl.DataFrame({'id': [1, 2], 'name': ['John', 'Jane']})
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=True) as f:
-            df.to_csv(f.name, index=False)
+            df.write_csv(f.name)
             result = self.extractor.extract(f.name)
-            self.assertIsInstance(result, pd.DataFrame)
-            self.assertEqual(len(result), 2)
+            self.assertIsInstance(result, pl.DataFrame)
+            self.assertEqual(result.height, 2)
     
     def test_extract_invalid_file(self):
         with self.assertRaises(Exception):

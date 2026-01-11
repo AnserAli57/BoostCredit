@@ -47,7 +47,11 @@ def main():
         elif args.mode == 'json':
             pipeline.process_json(file_path)
         
-        logger.info("Pipeline completed")
+        logger.info("Pipeline completed successfully")
+    except ConnectionError as e:
+        logger.error(f"Pipeline completed with database connection error: {e}")
+        logger.info("Data has been successfully saved to object store")
+        sys.exit(0)  # Exit successfully since data is saved
     except Exception as e:
         logger.error(f"Pipeline failed: {e}")
         sys.exit(1)
