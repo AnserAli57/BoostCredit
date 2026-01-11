@@ -43,11 +43,8 @@ output/
 test_output/
 *.parquet
 
-# Large data files (too big for GitHub)
-data/test.csv
-data/test.json
-data/*.csv
-data/*.json
+# Data directory (contains large files)
+data/
 
 # Environment files
 .env
