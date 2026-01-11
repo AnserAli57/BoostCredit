@@ -1,7 +1,7 @@
 import os
 from .extractors import CSVExtractor, JSONExtractor
 from .transformers import CSVTransformer, JSONTransformer
-from .loaders import SQLLoader, ObjectStoreLoader
+from .loaders import SQLLoader
 from .storage import ObjectStore
 from .utils.logger import setup_logger
 
@@ -12,7 +12,6 @@ class Pipeline:
     def __init__(self):
         self.object_store_path = os.getenv('OBJECT_STORE_PATH', './output')
         self.data_path = os.getenv('DATA_PATH', './data')
-        loader_type = os.getenv('LOADER_TYPE', 'sql').lower()
         
         self.object_store = ObjectStore(self.object_store_path)
         self.csv_extractor = CSVExtractor()

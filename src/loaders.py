@@ -1,6 +1,8 @@
 import os
+import time
 import pandas as pd
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
 from typing import Any
 
 
@@ -18,6 +20,21 @@ class SQLLoader:
         
         self.connection_string = self._build_connection_string()
         self.engine = create_engine(self.connection_string)
+        self._check_connection()
+    
+    def _check_connection(self, max_retries=5, retry_delay=2):
+        """Check database connection with retry logic."""
+        for attempt in range(max_retries):
+            try:
+                with self.engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
+                return
+            except OperationalError as e:
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    raise ConnectionError(f"Failed to connect to database after {max_retries} attempts: {e}")
     
     def _build_connection_string(self):
         if self.db_type == 'postgresql' or self.db_type == 'postgres':

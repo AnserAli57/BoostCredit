@@ -1,31 +1,6 @@
 version: '3.8'
 
 services:
-  etl-pipeline:
-    build: .
-    container_name: etl_pipeline
-    volumes:
-      - ./data:/app/data
-      - ./output:/app/output
-      - ./logs:/app/logs
-    environment:
-      - DATA_PATH=/app/data
-      - OBJECT_STORE_PATH=/app/output
-      - CSV_FILE=${CSV_FILE}
-      - JSON_FILE=${JSON_FILE}
-      - LOADER_TYPE=${LOADER_TYPE:-sql}
-      - STORE_KEY=${STORE_KEY}
-      - DB_TYPE=${DB_TYPE:-postgresql}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_DB=${POSTGRES_DB}
-    command: python main.py --mode csv
-
   postgres-db:
     image: postgres:15-alpine
     container_name: postgres_db
@@ -37,6 +12,55 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-etl_user} -d ${POSTGRES_DB:-etl_database}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  etl-pipeline-csv:
+    build: .
+    container_name: etl_pipeline_csv
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+      - ./logs:/app/logs
+    environment:
+      - DATA_PATH=/app/data
+      - OBJECT_STORE_PATH=/app/output
+      - STORE_KEY=${STORE_KEY:-csv_data}
+      - DB_TYPE=${DB_TYPE:-postgresql}
+      - DB_HOST=postgres-db
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-etl_user}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-etl_password}
+      - DB_NAME=${POSTGRES_DB:-etl_database}
+    command: python main.py --mode csv --file ${FILE:-test.csv} --store-key ${STORE_KEY:-csv_data}
+
+  etl-pipeline-json:
+    build: .
+    container_name: etl_pipeline_json
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+      - ./logs:/app/logs
+    environment:
+      - DATA_PATH=/app/data
+      - OBJECT_STORE_PATH=/app/output
+      - STORE_KEY=${STORE_KEY:-json_data}
+      - DB_TYPE=${DB_TYPE:-postgresql}
+      - DB_HOST=postgres-db
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-etl_user}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-etl_password}
+      - DB_NAME=${POSTGRES_DB:-etl_database}
+    command: python main.py --mode json --file ${FILE:-test.json} --store-key ${STORE_KEY:-json_data}
 
 volumes:
   postgres_data:
